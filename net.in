@@ -1,0 +1,18 @@
+en 0 -> 1 EN 0 -> 1 SLP 0 -> 0 wg 1 -> 0 WG 1 -> 0 ptc 0 -> 0 PTC 0 -> 0 CIA 0 -> 0 CIR 1 -> 0 ci 0 -> 0 CI 1 -> 0 SMO 0 -> 1 PH 0 -> 0 hh 1 -> 0 HH 0 -> 1 U1 C U2 C U3 C
+SLP = SLP
+wg = ((CIA && SLP && (1^CIR)) || (wg && (CIA || SLP) && (1^CIR))) && U2 
+WG = wg
+en = 1^SLP
+EN = en
+hh = EN && (1^CIR) && U3
+HH = hh
+ptc = CIA && (1^EN) && (1^CIR) && U1
+PTC = ptc || PTC
+PH = PTC
+SMO = 1^PTC
+ci = 1^EN
+CI = ci
+CIA = CI && SMO
+CIR = CI && (1^SMO)
+#
+6
