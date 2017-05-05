@@ -8,5 +8,5 @@ datta-fw: datta-fw.cc
 datta-bw: datta-bw.cc
 	g++ $(CC-OPTIONS) datta-bw.cc -o datta-bw
 
-gnet: gnet.cc
-	g++ $(CC-OPTIONS) gnet.cc -o gnet
+gnet: gnet.cc datta.h
+	g++ $(CC-OPTIONS) gnet.cc -o gnet -lboost_regex

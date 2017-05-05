@@ -9,7 +9,9 @@ using namespace std;
 
 const int maxn = 100;
 
+template<class P>
 struct Network;
+template<class P>
 struct State;
 
 template<class T>
@@ -20,16 +22,19 @@ ostream& operator<<(ostream& os, const vector<T>& v) {
 	return os << "]";
 }
 
-istream& operator>>(istream&, Network&);
+template<class P>
+istream& operator>>(istream&, Network<P>&);
 
+template<class P>
 struct State {
-	Network* network;
+	const Network<P>* network;
 	//bool state[maxn];
 	vector<bool> state;
+	P path;
 
-	State(Network* n=0);
-	State(Network&n);
-	bool operator==(const State& s) const {
+	State(const Network<P>* n=0);
+	State(const Network<P>&n);
+	bool operator==(const State<P>& s) const {
 		return state == s.state;
 	}
 
@@ -39,17 +44,18 @@ struct State {
 };
 
 namespace std{
-template<>
-struct hash<State>
+template<class P>
+struct hash<State<P>>
 {
 	hash<vector<bool>> h;
-	size_t operator()(State const & s) const noexcept
+	size_t operator()(State<P> const & s) const noexcept
 	{
 		return h(s.state);
 	}
 };
 }
 
+template<class P>
 struct Network {
 	int n;
 
@@ -59,12 +65,12 @@ struct Network {
 	bool isControl[maxn];
 	map<string, int> name2Id;
 	string id2Name[maxn];
-	State desireState, initState;
+	State<P> desireState, initState;
 	vector<int> controlGenes;
 
 	int getNameId(string name) {
 		if (name2Id.find(name) != name2Id.end())
-			return name2Id[name];
+			return name2Id.find(name)->second;
 		name2Id[name] = n;
 		id2Name[n] = name;
 		n++;
@@ -78,31 +84,39 @@ struct Network {
 		fi >> *this;
 	}
 
-	State nextState(const State&) const;
+	State<P> nextState(const State<P>&) const;
 
 };
 
-State::State(Network* n) : network(n), state(n==0?0:n->n, false) { }
+template<class P>
+State<P>::State(const Network<P>* n) : network(n), state(n==0?0:n->n, false), path() { 
+}
 
-State::State(Network& n) : network(&n), state(n.n, false) {}
+template<class P>
+State<P>::State(const Network<P>& n) : network(&n), state(n.n, false), path() {
+}
 
-void State::fillControlToFalse() {
+template<class P>
+void State<P>::fillControlToFalse() {
 	for (int i=0; i<network->controlGenes.size(); i++)
 		state[network->controlGenes[i]] = false;
 }
-State State::toNoControl() {
+template<class P>
+State<P> State<P>::toNoControl() {
 	State s = *this;
 	s.fillControlToFalse();
 	return s;
 }
 
 
-ostream& operator<<(ostream& os, const State& s) {
+template<class P>
+ostream& operator<<(ostream& os, const State<P>& s) {
 	for (int i=0; i<s.network->n; i++)
 		os << s.network->id2Name[i] << ":" << s.state[i] << " ";
 	return os;
 }
 
+template<class P>
 ostream& operator<<(ostream& os, Network& net) {
 	os << "Network: {" << endl;
 	os << "  n: " << net.n << endl;
@@ -166,17 +180,18 @@ istream& operator>>(istream& fi, Network& net) {
 	return fi;
 }
 State Network::nextState(const State& s) const {
-	Network& net = *s.network;
+	const Network& net = *s.network;
 	State next(&net);
 	TokenMap vars;
 	for (int i=0; i<net.n; i++)
 		vars[net.id2Name[i]] = int(s.state[i]);
 	for (int i=0; i<net.n; i++) {
-	//	cerr << "  ev: " << net.formula[i] << endl;
 		if (isControl[i])
 			next.state[i] = 0;
-		else
+		else {
+			//cerr << "  ev: " << net.formula[i] << " c:" << isControl[i] << "new-value: " << net.calc[i].eval(vars).asInt() << endl;
 			next.state[i] = net.calc[i].eval(vars).asInt();
+		}
 	}
 	return next;
 }
