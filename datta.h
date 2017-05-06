@@ -117,7 +117,7 @@ ostream& operator<<(ostream& os, const State<P>& s) {
 }
 
 template<class P>
-ostream& operator<<(ostream& os, Network& net) {
+ostream& operator<<(ostream& os, Network<P>& net) {
 	os << "Network: {" << endl;
 	os << "  n: " << net.n << endl;
 	for (int i=0; i<net.n; i++)
@@ -129,7 +129,8 @@ ostream& operator<<(ostream& os, Network& net) {
 	return os;
 }
 
-istream& operator>>(istream& fi, Network& net) {
+template<class P>
+istream& operator>>(istream& fi, Network<P>& net) {
 	net.n = 0;
 	memset(net.isControl, 0, sizeof net.isControl);
 	string l;
@@ -179,9 +180,11 @@ istream& operator>>(istream& fi, Network& net) {
 
 	return fi;
 }
-State Network::nextState(const State& s) const {
-	const Network& net = *s.network;
-	State next(&net);
+
+template<class P>
+State<P> Network<P>::nextState(const State<P>& s) const {
+	const Network<P>& net = *s.network;
+	State<P> next(&net);
 	TokenMap vars;
 	for (int i=0; i<net.n; i++)
 		vars[net.id2Name[i]] = int(s.state[i]);

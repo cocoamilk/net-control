@@ -1,8 +1,12 @@
+//DATTA FORWARD ...
 #include "datta.h"
 
-void checkAllStates(const Network& n, State& s, int fxd, unordered_set<State>& stateSet) {
+typedef Network<int> MyNetwork;
+typedef State<int> MyState;
+
+void checkAllStates(const MyNetwork& n, MyState& s, int fxd, unordered_set<MyState>& stateSet) {
 	if (fxd >= n.controlGenes.size()) {
-		State next = n.nextState(s);
+		MyState next = n.nextState(s);
 		cerr << "F " << next << " <" << s << ">" << endl;
 		stateSet.insert(next.toNoControl());
 		return;
@@ -13,30 +17,30 @@ void checkAllStates(const Network& n, State& s, int fxd, unordered_set<State>& s
 	}
 }
 
-void run(Network& net, int M) {
+void run(MyNetwork& net, int M) {
 	//Initialize
 	cerr << "I  " << endl;
-	unordered_set<State> initStateSet;
+	unordered_set<MyState> initStateSet;
 	cerr << "I initStateSet " << endl;
-	State s = net.initState;
+	MyState s = net.initState;
 	s.fillControlToFalse();
 	initStateSet.insert(s);
 	
 	cerr << "Init done" << endl;
 
-	unordered_set<State> nextStateSet = initStateSet;
+	unordered_set<MyState> nextStateSet = initStateSet;
 	for (int time=0; time <M; time++) {
 		cerr << "Time step " << time << " ... nextSize: " << nextStateSet.size() << endl;
-		unordered_set<State> currentStateSet;
-		for (unordered_set<State>::iterator i=nextStateSet.begin(); i!=nextStateSet.end(); i++) {
-			State s = *i;
+		unordered_set<MyState> currentStateSet;
+		for (unordered_set<MyState>::iterator i=nextStateSet.begin(); i!=nextStateSet.end(); i++) {
+			MyState s = *i;
 			checkAllStates(net, s, 0, currentStateSet);
 		}
 		nextStateSet = currentStateSet;
 	}
 	cerr << nextStateSet.size() << endl;
 
-	State desireState = net.initState;
+	MyState desireState = net.initState;
 	desireState.fillControlToFalse();
 	if (nextStateSet.find(net.desireState) != nextStateSet.end()) {
 		cout << "Found!" << endl;
@@ -50,18 +54,18 @@ int main(int argc, char* argv[]) {
 		return 0;
 	}
 	ifstream fi(argv[1]);
-	Network net(fi);
+	MyNetwork net(fi);
 	int M;
 	fi >> M;
 
-	State s1(net), s2(net);
-	for (int i=0; i<net.n; i++) {
-		s1.state[i] = (i%2);
-		s2.state[i] = (i%2);
-	}
-	s1.state[0] = 1;
-
-	cout << "EQ " << (s1 == s2) << endl;
+	//MyState s1(net), s2(net);
+	//for (int i=0; i<net.n; i++) {
+	//	s1.state[i] = (i%2);
+	//	s2.state[i] = (i%2);
+	//}
+	//s1.state[0] = 1;
+	//
+	//cout << "EQ " << (s1 == s2) << endl;
 
 	cerr << "Net:" << net << endl;
 

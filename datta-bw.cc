@@ -1,11 +1,16 @@
+//DATTA BACKWARD ...
+//This is original DATTA algorith,
 #include "datta.h"
 
-void checkAllStates(const Network& n, State& s, int fxd, unordered_set<State>& stateSet, const unordered_set<State>& validNextStateSet) {
+typedef Network<int> MyNetwork;
+typedef State<int> MyState;
+
+void checkAllStates(const MyNetwork& n, MyState& s, int fxd, unordered_set<MyState>& stateSet, const unordered_set<MyState>& validNextStateSet) {
 	if (fxd >= n.n) {
-		State next = n.nextState(s);
+		MyState next = n.nextState(s);
 		if (validNextStateSet.find(next) != validNextStateSet.end()) {
 			cerr << "F " << next << " <" << s << ">" << endl;
-			State nonControlState = s;
+			MyState nonControlState = s;
 			nonControlState.fillControlToFalse();
 			stateSet.insert(nonControlState);
 		}
@@ -17,29 +22,29 @@ void checkAllStates(const Network& n, State& s, int fxd, unordered_set<State>& s
 	}
 }
 
-void run(Network& net, int M) {
+void run(MyNetwork& net, int M) {
 
 	//Initialize
 	cerr << "I  " << endl;
-	unordered_set<State> desireSateSet;
+	unordered_set<MyState> desireSateSet;
 	cerr << "I desireStateSet " << endl;
-	State s = net.desireState;
+	MyState s = net.desireState;
 	s.fillControlToFalse();
 	desireSateSet.insert(s);
 	
 	cerr << "Init done" << endl;
 
-	unordered_set<State> nextStateSet = desireSateSet;
+	unordered_set<MyState> nextStateSet = desireSateSet;
 	for (int time=M-1; time >=0; time--) {
 		cerr << "Time step " << time << " ... nextSize: " << nextStateSet.size() << endl;
-		unordered_set<State> currentStateSet;
-		State s = State(net);
+		unordered_set<MyState> currentStateSet;
+		MyState s = MyState(net);
 		checkAllStates(net, s, 0, currentStateSet, nextStateSet);
 		nextStateSet = currentStateSet;
 	}
 	cerr << nextStateSet.size() << endl;
 
-	State initState = net.initState;
+	MyState initState = net.initState;
 	initState.fillControlToFalse();
 	if (nextStateSet.find(initState) != nextStateSet.end()) {
 		cout << "Found!" << endl;
@@ -53,11 +58,11 @@ int main(int argc, char* argv[]) {
 		return 0;
 	}
 	ifstream fi(argv[1]);
-	Network net(fi);
+	MyNetwork net(fi);
 	int M;
 	fi >> M;
 
-	State s1(net), s2(net);
+	MyState s1(net), s2(net);
 	for (int i=0; i<net.n; i++) {
 		s1.state[i] = (i%2);
 		s2.state[i] = (i%2);

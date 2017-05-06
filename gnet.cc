@@ -1,19 +1,24 @@
+//Goliaei NET CONTROL ALGORITHM IMPLEMENTATION ...
+//
 #include "datta.h"
 #include <boost/regex.hpp>
+
+typedef Network<int> MyNetwork;
+typedef State<int> MyState;
 
 template<class T>
 void uniq(vector<T>& v) {
 	sort(v.begin(), v.end());
 	typename vector<T>::iterator it = unique(v.begin(), v.end());
-
 	v.resize(distance(v.begin(), it));
 }
 
+//To represent genes and their connections.
 struct Graph {
 	int n;
 	vector<vector<int>> eIn, eOut;
 
-	Graph(Network& net) : n(net.n), eIn(net.n, vector<int>()), eOut(net.n, vector<int>()) {
+	Graph(MyNetwork& net) : n(net.n), eIn(net.n, vector<int>()), eOut(net.n, vector<int>()) {
 		boost::regex re("[a-zA-Z_][a-zA-Z_0-9]*");        // Create the reg exp
 		for (int i=0; i<n; i++) {
 			cerr << "G l " << i << " ... '" << net.formula[i] << "'" << endl;
@@ -45,20 +50,21 @@ ostream& operator<<(ostream& os, Graph& g) {
 }
 
 /*
-void checkAllStates(const Network& n, State& s, int fxd, unordered_set<State>& stateSet) {
+void checkAllStates(const MyNetwork& n, MyState& s, int fxd, unordered_set<MyState>& stateSet) {
 	if (fxd >= n.controlGenes.size()) {
-		State next = n.nextState(s);
+		MyState next = n.nextState(s);
 		cerr << "F " << next << " <" << s << ">" << endl;
 		stateSet.insert(next.toNoControl());
 		return;
 	}
 	for (int t=0; t<2; t++) {
 		s.state[n.controlGenes[fxd]] = t;
-		checkAllStates(n, s, fxd+1, stateSet);
+		fillControlAndProduceNextStates(n, s, fxd+1, stateSet);
 	}
 }
-
 */
+
+//Strongly Connected Components
 struct SCC {
 	const Graph& g;
 	vector<vector<int>> comp;
@@ -118,30 +124,33 @@ ostream& operator<<(ostream& os, const SCC& scc) {
 	return os << "}" << endl;
 }
 
-ostream& operator<<(ostream& os, const unordered_set<State>& stateSet) {
-	for (unordered_set<State>::const_iterator i=stateSet.begin(); i!=stateSet.end(); i++)
+ostream& operator<<(ostream& os, const unordered_set<MyState>& stateSet) {
+	for (unordered_set<MyState>::const_iterator i=stateSet.begin(); i!=stateSet.end(); i++)
 		os << *i << " ";
 	return os << endl;
 }
 
 const int maxt = 50;
 
+//Means putting value=val to vertex=v in time=t
 struct ControlCondition {
 	int t, v, val;
 	ControlCondition(int _t=0, int _v=0, int _val=0) : t(_t), v(_v), val(_val) {}
 };
 
 struct GNet {
-	vector<ControlCondition> possibleStatePath[maxt+1][maxn][2];
+	//vector<ControlCondition> possibleStatePath[maxt+1][maxn][2];
 	bool possibleState[maxt+1][maxn][2];
-	const Network& net;
+	const MyNetwork& net;
 	const Graph& g;
 	const SCC& scc;
 	int M;
 
-	void checkAllStates(int c, int t, State& s, int i, unordered_set<State>& stateSet, vector<ControlCondition>& controlConditions) {
+	GNet(const MyNetwork& _net, const Graph& _g, const SCC& _scc, int _M) : net(_net), g(_g), scc(_scc), M(_M) {}
+
+	void fillControlAndProduceNextStates(int c, int t, MyState& s, int i, unordered_set<MyState>& stateSet, vector<ControlCondition>& controlConditions) {
 		if (i >= scc.in[c].size()) {
-			State n = net.nextState(s), nn(net);
+			MyState n = net.nextState(s), nn(net);
 			//zero state of genes not in this component
 			for (int i=0; i<scc.comp[c].size(); i++)
 				nn.state[scc.comp[c][i]] = n.state[scc.comp[c][i]];
@@ -149,7 +158,7 @@ struct GNet {
 			for (int j=0; j<scc.comp[c].size(); j++) {
 				int v = scc.comp[c][j];
 				possibleState[t+1][v][nn.state[v]] = true;
-				possibleStatePath[t+1][v][nn.state[v]] = controlConditions;
+				//possibleStatePath[t+1][v][nn.state[v]] = controlConditions;
 				//possibleStatePath[time+1][v][(*i).state[v]] = 
 			}
 			stateSet.insert(nn);
@@ -160,16 +169,17 @@ struct GNet {
 				cerr << "  S[" << t << "][" << scc.in[c][i] << "] " << o << endl; 
 				s.state[scc.in[c][i]] = o;
 				int controlCoditionsPrevSize = controlConditions.size();
-				controlConditions.push_back(possibleStatePath[t][scc.in[c][i]][o]);
-				checkAllStates(c, t, s, i+1, stateSet);
+				controlConditions.push_back(ControlCondition(t, scc.in[c][i], o));
+				fillControlAndProduceNextStates(c, t, s, i+1, stateSet, controlConditions);
 				controlConditions.resize(controlCoditionsPrevSize);
 			}
 	}
 
+	//fill possibleState[*][scc.comp[c][*]][*]
 	void subDatta(int c) {
 		cerr << "    subDatta " << c << endl;
-		unordered_set<State> initStateSet;
-		State s = net.initState;
+		unordered_set<MyState> initStateSet;
+		MyState s = net.initState;
 		s.fillControlToFalse();
 		initStateSet.insert(s);
 
@@ -179,27 +189,27 @@ struct GNet {
 			possibleState[0][v][1-s.state[v]] = false;
 		}
 
-		unordered_set<State> currentStateSet = initStateSet;
-		for (int time=0; time <M; time++) {
+		unordered_set<MyState> currentStateSet = initStateSet;
+		for (int time=0; time <M; time++) { //fills t=time+1
 			cerr << "C " << c << " Time step " << time << " ... currentSize: " << currentStateSet.size() << endl;
 			for (int j=0; j<scc.comp[c].size(); j++) {
 				int v = scc.comp[c][j];
 				possibleState[time+1][v][0] = possibleState[time+1][v][1] = false;
 			}
 
-			unordered_set<State> nextStateSet;
-			for (unordered_set<State>::iterator i=currentStateSet.begin(); i!=currentStateSet.end(); i++) {
-				State s = *i;
+			unordered_set<MyState> nextStateSet;
+			for (unordered_set<MyState>::iterator i=currentStateSet.begin(); i!=currentStateSet.end(); i++) {
+				MyState s = *i;
 				vector<ControlCondition> controlConditions;
-				controlConditions = s.path;
-				checkAllStates(c, time, s, 0, nextStateSet);
+				//controlConditions = s.path;
+				fillControlAndProduceNextStates(c, time, s, 0, nextStateSet, controlConditions);
 			}
 			currentStateSet = nextStateSet;
 
 			cerr << "C " << c << " Time step " << time << " ... nextSize: " << currentStateSet.size() << " " << currentStateSet << endl;
 
 			//fill possibleState[time+1]
-			//for (unordered_set<State>::iterator i=currentStateSet.begin(); i!=currentStateSet.end(); i++)
+			//for (unordered_set<MyState>::iterator i=currentStateSet.begin(); i!=currentStateSet.end(); i++)
 			//	for (int j=0; j<scc.comp[c].size(); j++) {
 			//		int v = scc.comp[c][j];
 			//		possiblestate[time+1][v][(*i).state[v]] = true;
@@ -208,6 +218,7 @@ struct GNet {
 	}
 
 	// It does not fix time=M, since it does not affect any furter times.
+	//back track on component c, first on t then on i.
 	void fixVertex(int c, int i, int t) {
 		if (i >= scc.comp[c].size()) {
 			cerr << "  VF "<< c << " ";
@@ -240,6 +251,7 @@ struct GNet {
 		}
 	}
 
+	//backtrack on component c, then next component
 	void checkComponent(int c) {
 		cerr << "Comp " << c << endl;
 		if (c >= scc.comp.size()) {
@@ -277,7 +289,6 @@ struct GNet {
 		checkComponent(0);
 	}
 
-	GNet(const Network& _net, const Graph& _g, const SCC& _scc, int _M) : net(_net), g(_g), scc(_scc), M(_M) {}
 };
 
 int main(int argc, char* argv[]) {
@@ -286,7 +297,7 @@ int main(int argc, char* argv[]) {
 		return 0;
 	}
 	ifstream fi(argv[1]);
-	Network net(fi);
+	MyNetwork net(fi);
 	int M;
 	fi >> M;
 
