@@ -136,20 +136,54 @@ const int maxt = 50;
 struct ControlCondition {
 	int t, v, val;
 	ControlCondition(int _t=0, int _v=0, int _val=0) : t(_t), v(_v), val(_val) {}
+	bool operator<(const ControlCondition& c) const {
+		if (t != c.t)
+			return t < c.t;
+		if (v != c.v)
+			return v < c.v;
+		return val < c.val;
+	}
+};
+
+struct Simulator {
+	const MyNetwork& net;
+
+	Simulator(const MyNetwork& _net) : net(_net) {}
+
+	bool testCondition(const set<ControlCondition>& conditions, int M) {
+		MyState s = net.initState;
+		for (int i=0; i<M; i++) {
+			cerr << "SIM " << i << " " << s << endl;
+			for (set<ControlCondition>::iterator j=conditions.begin(); j!=conditions.end(); j++) {
+				if (j->t == i)
+					s.state[j->v] = j->val;
+			}
+			s = net.nextState(s);
+		}
+		cerr << "SIM " << "*" << " " << s << endl;
+		for (int j=0; j<net.n; j++)
+			if (!net.isControl[j] && s.state[j] != net.desireState.state[j]) {
+				cerr << "Error in " << j << " " << net.isControl[j] << " " << s.state[j] << " " << net.desireState.state[j] << endl;
+				return false;
+			}
+		return true;
+	}
 };
 
 struct GNet {
 	//vector<ControlCondition> possibleStatePath[maxt+1][maxn][2];
 	bool possibleState[maxt+1][maxn][2];
+	vector<ControlCondition> possibleStateConditions[maxt+1][maxn][2];
 	const MyNetwork& net;
 	const Graph& g;
 	const SCC& scc;
+	vector<vector<int>> componentInputs;
 	int M;
 
 	GNet(const MyNetwork& _net, const Graph& _g, const SCC& _scc, int _M) : net(_net), g(_g), scc(_scc), M(_M) {}
 
 	void fillControlAndProduceNextStates(int c, int t, MyState& s, int i, unordered_set<MyState>& stateSet, vector<ControlCondition>& controlConditions) {
-		if (i >= scc.in[c].size()) {
+		if (i >= componentInputs[c].size()) {
 			MyState n = net.nextState(s), nn(net);
 			//zero state of genes not in this component
 			for (int i=0; i<scc.comp[c].size(); i++)
@@ -158,18 +192,22 @@ struct GNet {
 			for (int j=0; j<scc.comp[c].size(); j++) {
 				int v = scc.comp[c][j];
 				possibleState[t+1][v][nn.state[v]] = true;
+				possibleStateConditions[t+1][v][nn.state[v]] = controlConditions;
 				//possibleStatePath[t+1][v][nn.state[v]] = controlConditions;
 				//possibleStatePath[time+1][v][(*i).state[v]] = 
 			}
 			stateSet.insert(nn);
 			return;
 		}
+		int v = componentInputs[c][i];
 		for (int o=0; o<2; o++)
-			if (possibleState[t][scc.in[c][i]][o]) {
-				cerr << "  S[" << t << "][" << scc.in[c][i] << "] " << o << endl; 
-				s.state[scc.in[c][i]] = o;
+			if (possibleState[t][v][o]) {
+				cerr << "  S[" << t << "][" << v << "] " << o << endl; 
+				s.state[v] = o;
 				int controlCoditionsPrevSize = controlConditions.size();
-				controlConditions.push_back(ControlCondition(t, scc.in[c][i], o));
+				//controlConditions.push_back(ControlCondition(t, scc.in[c][i], o));
+				//TODO: following is time consuming, should be computed when result is found.
+				controlConditions.insert(controlConditions.end(), possibleStateConditions[t][v][o].begin(), possibleStateConditions[t][v][o].end());
 				fillControlAndProduceNextStates(c, t, s, i+1, stateSet, controlConditions);
 				controlConditions.resize(controlCoditionsPrevSize);
 			}
@@ -261,13 +299,18 @@ struct GNet {
 					return;
 				}
 			//Found!
-			cout << "Found!" << endl;
+			printResult();
 			return;
 		}
 		if (scc.comp[c].size() == 1 && net.isControl[scc.comp[c][0]]) {
 			int v = scc.comp[c][0];
-			for (int t=0; t<M; t++)
+			for (int t=0; t<M; t++) {
 				possibleState[t][v][0] = possibleState[t][v][1] = true;
+				possibleStateConditions[t][v][0].clear();
+				possibleStateConditions[t][v][0].push_back(ControlCondition(t, v, 0));
+				possibleStateConditions[t][v][1].clear();
+				possibleStateConditions[t][v][1].push_back(ControlCondition(t, v, 1));
+			}
 		} else {
 			subDatta(c);
 		}
@@ -285,7 +328,33 @@ struct GNet {
 		fixVertex(c, 0, 0);
 	}
 
+	void printResult() {
+		Simulator sim(net);
+		cout << "Found!" << endl;
+		set<ControlCondition> conditions;
+		for (int i=0; i<net.n; i++) 
+			if (!net.isControl[i]) {
+				conditions.insert(possibleStateConditions[M][i][net.desireState.state[i]].begin(), possibleStateConditions[M][i][net.desireState.state[i]].end());
+			}
+
+		for (set<ControlCondition>::iterator i=conditions.begin(); i!=conditions.end(); i++) {
+			cout << " " << i->t << " " << net.id2Name[i->v] << " " << i->val << endl;
+		}
+		sim.testCondition(conditions, M);
+	}
+
 	void run() {
+		componentInputs.clear();
+		for (int c=0; c<scc.comp.size(); c++) {
+			set<int> inputs;
+			for (int i=0; i<scc.comp[c].size(); i++) {
+				int v = scc.comp[c][i];
+				for (int j=0; j<g.eIn[v].size(); j++) {
+					inputs.insert(g.eIn[v][j]);
+				}
+			}
+			componentInputs.push_back(vector<int>(inputs.begin(), inputs.end()));
+		}
 		checkComponent(0);
 	}
 
