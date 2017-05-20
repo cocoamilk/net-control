@@ -16,6 +16,7 @@ void uniq(vector<T>& v) {
 //To represent genes and their connections.
 struct Graph {
 	int n;
+	//eIn: index of nodes to node[i]
 	vector<vector<int>> eIn, eOut;
 
 	Graph(MyNetwork& net) : n(net.n), eIn(net.n, vector<int>()), eOut(net.n, vector<int>()) {
@@ -71,6 +72,7 @@ struct SCC {
 
 	vector<int> preOrder;
 	int mark[maxn];
+	int isEndComponent[maxn];
 
 	//id of vertices which have edge to this component
 	vector<vector<int>> in;
@@ -91,6 +93,14 @@ struct SCC {
 				dfs2(g.eIn[v][i]);
 	}
 
+	int getNodeComponent(int v) const {
+		for (int i=0; i<comp.size(); i++)
+			for (int j=0; j<comp[i].size(); j++)
+				if (v == comp[i][j])
+					return i;
+		return -1;
+	}
+
 	SCC(const Graph& _g) : g(_g) {
 		memset(mark, 0, sizeof mark);
 		for (int i=0; i<g.n; i++)
@@ -104,6 +114,7 @@ struct SCC {
 				dfs2(*i);
 			}
 
+		in.clear();
 		for (int i=0; i<comp.size(); i++) {
 			in.push_back(vector<int>());
 			for (int j=0; j<comp[i].size(); j++)
@@ -112,6 +123,18 @@ struct SCC {
 					in[i].push_back(g.eIn[comp[i][j]][k]);
 				}
 			uniq(in[i]);
+		}
+
+		for (int c=0; c<comp.size(); c++)
+			isEndComponent[c] = true;
+
+		for (int i=0; i<g.n; i++) {
+			int ic = getNodeComponent(i);
+			for (int j=0; j<g.eIn[i].size(); j++) {
+				int jc = getNodeComponent(g.eIn[i][j]);
+				if (ic != jc)
+					isEndComponent[jc] = false;
+			}
 		}
 
 	}
@@ -325,7 +348,29 @@ struct GNet {
 					cerr << possibleState[tt][scc.comp[c][j]][0] << "|" << possibleState[tt][scc.comp[c][j]][1] << " ";
 				cerr << endl;
 			}
-		fixVertex(c, 0, 0);
+		if (!scc.isEndComponent[c]) {
+			fixVertex(c, 0, 0);
+		} else {
+			checkComponent(c+1);
+		}
+	}
+
+
+	int bestCostSolution;
+	set<ControlCondition> lowestCostSolution;
+
+	vector<vector<int>> fullControlCondition(const set<ControlCondition>& cc) {
+		vector<vector<int>> r(M, vector<int>(net.n, 0));
+		int lastT[maxn];
+		for(int i=0; i<net.n; i++)
+			lastT[i] = -1;
+
+		for (set<ControlCondition>::iterator i=cc.begin(); i!=cc.end(); i++) {
+			for (int j=lastT[i->v]+1; j<=i->t; j++)
+				r[j][i->v] = i->val;
+			lastT[i->v] = i->t;
+		}
+		return r;
 	}
 
 	void printResult() {
@@ -337,13 +382,29 @@ struct GNet {
 				conditions.insert(possibleStateConditions[M][i][net.desireState.state[i]].begin(), possibleStateConditions[M][i][net.desireState.state[i]].end());
 			}
 
-		for (set<ControlCondition>::iterator i=conditions.begin(); i!=conditions.end(); i++) {
-			cout << " " << i->t << " " << net.id2Name[i->v] << " " << i->val << endl;
+		vector<vector<int>> fConditions = fullControlCondition(conditions);
+		int change = 0;
+		for (int i=0; i<net.n; i++) {
+			if (net.isControl[i]) {
+				for (int t=1; t<M; t++)
+					if (fConditions[t][i] != fConditions[t-1][i])
+						change++;
+			}
 		}
+		if (change < bestCostSolution) {
+			lowestCostSolution = conditions;
+			bestCostSolution = change;
+			for (set<ControlCondition>::iterator i=conditions.begin(); i!=conditions.end(); i++) {
+				cout << " " << i->t << " " << net.id2Name[i->v] << " " << i->val << endl;
+			}
+			cerr << "  BEST: " << change << endl;
+		}
+
 		sim.testCondition(conditions, M);
 	}
 
 	void run() {
+		bestCostSolution = INT_MAX;
 		componentInputs.clear();
 		for (int c=0; c<scc.comp.size(); c++) {
 			set<int> inputs;
@@ -380,5 +441,7 @@ int main(int argc, char* argv[]) {
 	GNet gnet(net, g, scc, M);
 
 	gnet.run();
+
+	cout << "SOLUTION: " << gnet.bestCostSolution << endl;
 	return 0;
 }
