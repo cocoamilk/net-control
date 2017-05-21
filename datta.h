@@ -136,7 +136,7 @@ istream& operator>>(istream& fi, Network<P>& net) {
 	string l;
 	getline(fi, l);
 	istringstream is(l.c_str());
-	cerr << "L Net Des inline `" << l << "`" << endl;
+	//cerr << "L Net Des inline `" << l << "`" << endl;
 
 	net.desireState = &net;
 	net.initState = &net;
@@ -160,20 +160,20 @@ istream& operator>>(istream& fi, Network<P>& net) {
 			cerr << "Invalid gene " << gene << " = " << init << endl;
 	}
 
-	cerr << "L Net Des done" << endl;
+	//cerr << "L Net Des done" << endl;
 
 	for (string a, eq, f; fi >> a, (a[0] != '#'); ) {
 		fi >> eq;
 		getline(fi, f);
 		if (eq != "=")
 			cerr << "Invalid eq mark: " << eq << endl;
-		cerr << "L Net E " << a << ": " << f << endl;
+		//cerr << "L Net E " << a << ": " << f << endl;
 		int id = net.getNameId(a);
 		net.formula[id] = f;
 		net.calc[id] = calculator(f.c_str());
 	}
 
-	cerr << "L Net done" << endl;
+	//cerr << "L Net done" << endl;
 
 	if (desGenes.size() != net.n)
 		cerr << "Some genes without desire state ... " << desGenes.size() << " <> " << net.n << endl;
